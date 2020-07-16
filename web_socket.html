@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Chat</title>
+	</head>
+	<body>
+		<h1>WebSocket Chat</h1>
+		<div style="width: 200px;height: 300px;display: grid;">
+			<ul id='user_list'></ul>
+		</div>
+		<div style="width: 400px;height: 300px;display: grid;">
+			<form action="" onsubmit="sendMessage(event)">
+				<select name="" id="class_">
+					<caption>101</caption>
+					<caption>102</caption>
+					<caption>103</caption>
+				</select>
+				<input type="text" id="messageText" autocomplete="off" placeholder="" />
+				<button>Send</button>
+			</form>
+			<ul id='messages'>
+		</div>
+		</ul>
+		<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+		<script>		
+			document.getElementById("messageText").placeholder = "第一次输入内容为昵称";
+
+			var ws = new WebSocket("ws://localhost:8000/ws");
+			var count = 0;
+			var appId = '101';
+			var person = '';
+			var user_list = [];
+
+			// ws.onopen = function(evt) {
+			// 	console.log("Connection open ...");
+			// 	person =  getName();
+			// 	console.log("用户准备登陆:" + person);
+			// 	ws.send('{"seq":"' + sendId() + '","cmd":"login","data":{"userId":"' + person + '","appId":'+ appId +'}}');
+			// 	setInterval(heartbeat, 30 * 1000)
+			// };
+
+			// 接收
+			ws.onmessage = function (event) {
+				res = JSON.parse( event.data )
+				if (count == 1) {
+					console.log(event.data)
+				}
+				console.log(typeof res,res)
+				if (res['cmd']!='heartbeat'){
+					msg = res['data']['userId']+': '+ res['data']['msg']+'-->'+ res['seq']
+					// 获取id为messages的ul标签内
+					var messages = document.getElementById('messages');
+					// 创建li标签
+					var message = document.createElement('li');
+					// 创建内容
+					var content = document.createTextNode(msg);
+					// 内容添加到li标签内
+					message.appendChild(content);
+					// li标签添加到ul标签内
+					messages.appendChild(message);
+				}
+			};
+
+			// 发送			
+			function sendMessage(event) {
+				console.log(count);
+				var input = document.getElementById("messageText");
+				if (count == 0) {
+					// 发送昵称
+					var msg_data = {'seq': sendId(), 'cmd': "login", 'data': {'userId': input.value, 'appId': appId}}
+					ws.send(JSON.stringify(msg_data) );
+					setInterval(heartbeat, 30 * 1000);
+					document.getElementById("messageText").placeholder = "";
+					count = parseInt(count) + 1;
+					person = input.value;
+				} else {
+					console.log('count', input.value, person);
+					sendmsg(input.value, appId, person);
+				}
+				input.value = ''
+				event.preventDefault()
+			};
+			function sendmsg(msg, appId, person) {
+				if (msg != "") {
+					var data = {
+						appId: appId,
+						userId: person,
+						msgId: sendId(),
+						message: msg,
+						}
+					axios.post('http://127.0.0.1:8000/send_msg', data)
+					.then(function (response) {
+						console.log(response);
+					})
+					.catch(function (error) {
+						console.log(error);
+					});
+				}
+			};
+			function sendId() {
+				let timeStamp = currentTime();
+				let randId = randomNumber(100000, 999999);
+				let id = timeStamp + "-" + randId;
+				return id
+			}
+			function currentTime() {
+				let timeStamp = (new Date()).valueOf();
+				return timeStamp
+			}
+			function randomNumber(minNum, maxNum) {
+				switch (arguments.length) {
+					case 1:
+						return parseInt(Math.random() * minNum + 1, 10);
+						break;
+					case 2:
+						return parseInt(Math.random() * (maxNum - minNum + 1) + minNum, 10);
+						break;
+					default:
+						return 0;
+						break;
+				}
+			}
+			// 获取该房间在线人的信息
+			function get_userlist() {
+				axios.get('http://127.0.0.1:8000/get_userlist')
+				.then(function (response) {
+					// 获取id为messages的ul标签内
+					var messages = document.getElementById('user_list');
+					var res = [];
+					for (const key in response['data']['101']) {
+						res.push(key)
+					}
+					console.log('101',res)
+					var cha = res.filter((val)=>!new Set(user_list).has(val));
+					if (cha){
+						for (const key in cha) {					
+							// 创建li标签
+							var message = document.createElement('li');
+							// 创建内容
+							var content = document.createTextNode(cha[key] );
+							// 内容添加到li标签内
+							message.appendChild(content);
+							// li标签添加到ul标签内
+							messages.appendChild(message);
+							user_list.push(cha[key]);
+						};
+					}				
+					// timerId = setTimeout(get_userlist, 5000);
+				})
+				.catch(function (error) {
+					console.log(error);
+				});
+			};
+			setInterval(get_userlist, 30 * 1000);
+			// 心跳函数
+			function heartbeat() {
+				console.log("定时心跳:" + person);
+				ws.send('{"seq":"' + sendId() + '","cmd":"heartbeat","data":{}}');
+			}		
+			// 跑websocket并发和压测
+			// async function load_add () {
+			// 	var ws = new WebSocket("ws://localhost:8000/ws");
+			// 	count = parseInt(count) + 1;
+			// 	var content = "我是小大"+count;
+			// 	console.log(content, typeof content)
+			// 	//添加事件监听
+			// 	ws.addEventListener('open', function () {
+			// 		ws.send(content)
+			// 	});
+			// 	timerId = setTimeout(load_add, 100)
+			// }
+			// load_add()
+		</script>
+	</body>
+</html>
